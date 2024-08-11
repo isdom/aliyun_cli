@@ -1,10 +1,11 @@
 #!/bin/bash
-
-if [ "$#" -ne 1 ]; then
-  echo "usage: ./scale_funasr.sh <ScalingGroupId>"
+if [ "$#" -lt 1 ]; then
+  echo "usage: ./funasr_actconn.sh <ScalingGroupId> [inc_rule] [dec_rule]"
   exit -1
 fi
 
+max_conn_per_inst=25
+min_conn_per_inst=10
 inst_cnt=0
 total_conn_cnt=0
 
@@ -31,3 +32,29 @@ do
 done
 
 echo "$1 's total instance num: ${inst_cnt} / total act conn num: ${total_conn_cnt}"
+
+if  [ ! "$2" ] ;then
+    echo "!NO! inc rule. skip scaling action"
+    exit 0
+else
+    echo "using inc rule: $2"
+fi
+
+if [ ${total_conn_cnt} -gt $((${inst_cnt} * ${max_conn_per_inst})) ]
+then 
+    echo "too many total conn, increase instance by rule..."
+    aliyun ess ExecuteScalingRule --ScalingRuleAri $2 --version 2022-02-22 --method POST --force
+fi
+
+if  [ ! "$3" ] ;then
+    echo "!NO! dec rule, skip scaling action"
+    exit 0
+else
+    echo "using dec rule: $3"
+fi
+
+if [ ${total_conn_cnt} -lt $((${inst_cnt} * ${min_conn_per_inst})) ]
+then 
+    echo "too less total conn, decrease instance by rule..."
+    aliyun ess ExecuteScalingRule --ScalingRuleAri $3 --version 2022-02-22 --method POST --force
+fi
