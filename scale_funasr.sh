@@ -23,9 +23,20 @@ do
            --ContentEncoding 'Base64' --Username 'root' --Timeout '60' --Type 'RunShellScript' \
            --InstanceId.1 ${inst_id}\
            | jq .InvokeId | sed 's/\"//g')
-    sleep 2
-    cnt_output=$(aliyun ecs DescribeInvocationResults --InvokeId ${invoke_id} \
-                | jq .Invocation.InvocationResults.InvocationResult[0].Output | sed 's/\"//g')
+
+    invoke_result=“”
+    invoke_status=""
+
+    while [ “${invoke_status}” != “Finished” ]; do
+        invoke_result=$(aliyun ecs DescribeInvocationResults --InvokeId ${invoke_id})
+        invoke_status=$(echo ${invoke_result} | jq .Invocation.InvocationResults.InvocationResult[0].InvokeRecordStatus | sed 's/\"//g')
+        if  [ “${invoke_status}” == “Running” ] ;then
+            echo "calc conn script still running"
+            sleep 1
+        fi
+    done
+
+    cnt_output=$(echo ${invoke_result} | jq .Invocation.InvocationResults.InvocationResult[0].Output | sed 's/\"//g')
     conn_cnt=$(printf "%s" ${cnt_output}| base64 -d)
     echo "${inst_id}: act conn num: ${conn_cnt}"
     total_conn_cnt=$((${total_conn_cnt} + ${conn_cnt}))
